@@ -1,31 +1,3 @@
-# database
-High performance in-memory database
-
-### Download
-
-Just copy package `com.editbox.database` to your project.
-
-### Example
-A simple Java class for repository.
-```java
-public class User implements RepositoryAccess {
-    @Uuid
-    @NotNull
-    private UUID id;
-
-    @NotNull
-    @MaxLength(50)
-    private String name;
-
-    @NotNull
-    private LocalDateTime created;
-
-    private boolean blocked;
-    // getters, setters, some boring stuff
-}
-```
-Create a database instance, add a user and get a list of users.
-```java
 package com.editbox;
 
 import com.editbox.database.BackupResult;
@@ -40,6 +12,7 @@ import java.util.UUID;
 public class Example {
 
     public static void main(String[] args) {
+
         Database database = Database.configure("C:\\myapp\\database", "C:\\myapp\\backups");
         database.registerRepository(User.class, "users");
         database.enableBackup("05:00:00", Example::logBackupResult);
@@ -67,14 +40,54 @@ public class Example {
             System.out.println("Error creating backup in " + duration + " seconds. " + result.getThrowable().getMessage());
         }
     }
+
+    public static class User implements RepositoryAccess {
+
+        @Uuid
+        @NotNull
+        private UUID id;
+
+        @NotNull
+        @MaxLength(50)
+        private String name;
+
+        @NotNull
+        private LocalDateTime created;
+
+        private boolean blocked;
+
+        @Override
+        public UUID getId() {
+            return id;
+        }
+
+        @Override
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public LocalDateTime getCreated() {
+            return created;
+        }
+
+        public void setCreated(LocalDateTime created) {
+            this.created = created;
+        }
+
+        public boolean isBlocked() {
+            return blocked;
+        }
+
+        public void setBlocked(boolean blocked) {
+            this.blocked = blocked;
+        }
+    }
 }
-```
-Output
-```
-9f451f24-bf95-42a8-9559-563d4d336373 Alex 2019-11-13T01:20:54.601744300
-b1221d05-6eae-48e5-b625-a57a56a139a9 Alex 2019-11-13T01:23:01.892311800
-5f569221-47d9-45a5-beb9-e24b2eccc049 Alex 2019-11-13T01:21:58.224858400
-feaad5e8-2e42-4ca9-a1df-96ba15f5ba77 Alex 2019-11-13T01:20:58.086081700
-4bafcab2-d9e3-433b-ad4d-0d0054612406 Alex 2019-11-13T01:31:16.274782700
-Number of users: 5
-```
