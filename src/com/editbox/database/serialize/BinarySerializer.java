@@ -15,47 +15,55 @@ public class BinarySerializer<E extends RepositoryAccess> implements Serializer<
     private static Map<Class, Map<Short, Field>> cacheFields = new HashMap<>();
 
     @Override
-    public byte[] fullFormat(E entry) throws ReflectiveOperationException {
+    public byte[] fullFormat(E entry) {
         ByteBuf buf = new ByteBuf();
         Field[] fields = entry.getClass().getDeclaredFields();
-        for (Field field : fields) {
-            field.setAccessible(true);
-            if (field.get(entry) == null || field.getAnnotation(Uuid.class) != null) {
-                continue;
+        try {
+            for (Field field : fields) {
+                field.setAccessible(true);
+                if (field.get(entry) == null || field.getAnnotation(Uuid.class) != null) {
+                    continue;
+                }
+                String typeName = field.getType().getName();
+                putFieldValue(buf, typeName, field, entry);
             }
-            String typeName = field.getType().getName();
-            putFieldValue(buf, typeName, field, entry);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
         }
         return buf.toArray();
     }
 
-    public byte[] formatDiff(E oldEntry, E newEntry) throws ReflectiveOperationException {
+    public byte[] formatDiff(E oldEntry, E newEntry) {
         ByteBuf buf = new ByteBuf();
         Field[] fields = oldEntry.getClass().getDeclaredFields();
-        for (Field field : fields) {
-            field.setAccessible(true);
-            if (field.get(oldEntry) == null && field.get(newEntry) == null) {
-                continue;
+        try {
+            for (Field field : fields) {
+                field.setAccessible(true);
+                if (field.get(oldEntry) == null && field.get(newEntry) == null) {
+                    continue;
+                }
+                if (field.get(oldEntry) != null && field.get(newEntry) == null) {
+                    buf.putShort(hashName(field.getName()));
+                    buf.putByte((byte) 0x7F);
+                    continue;
+                }
+                String typeName = field.getType().getName();
+                if (field.get(oldEntry) == null && field.get(newEntry) != null) {
+                    putFieldValue(buf, typeName, field, newEntry);
+                    continue;
+                }
+                boolean areEqual;
+                if (typeName.equals("[B")) {
+                    areEqual = Arrays.equals((byte[]) field.get(oldEntry), (byte[]) field.get(newEntry));
+                } else {
+                    areEqual = field.get(oldEntry).equals(field.get(newEntry));
+                }
+                if (!areEqual) {
+                    putFieldValue(buf, typeName, field, newEntry);
+                }
             }
-            if (field.get(oldEntry) != null && field.get(newEntry) == null) {
-                buf.putShort(hashName(field.getName()));
-                buf.putByte((byte) 0x7F);
-                continue;
-            }
-            String typeName = field.getType().getName();
-            if (field.get(oldEntry) == null && field.get(newEntry) != null) {
-                putFieldValue(buf, typeName, field, newEntry);
-                continue;
-            }
-            boolean areEqual;
-            if (typeName.equals("[B")) {
-                areEqual = Arrays.equals((byte[]) field.get(oldEntry), (byte[]) field.get(newEntry));
-            } else {
-                areEqual = field.get(oldEntry).equals(field.get(newEntry));
-            }
-            if (!areEqual) {
-                putFieldValue(buf, typeName, field, newEntry);
-            }
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
         }
         return buf.toArray();
     }
@@ -179,7 +187,7 @@ public class BinarySerializer<E extends RepositoryAccess> implements Serializer<
     }
 
     @Override
-    public void fillEntry(Class<E> clazz, E entry, byte[] serializedData) throws ReflectiveOperationException {
+    public void fillEntry(Class<E> clazz, E entry, byte[] serializedData) {
         ByteBuf buf = new ByteBuf(serializedData);
         Map<Short, Field> fields = getFields(clazz);
         while (buf.getPosition() < buf.getCapacity()) {
@@ -275,29 +283,33 @@ public class BinarySerializer<E extends RepositoryAccess> implements Serializer<
                 default:
                     throw new RuntimeException("Type " + String.format("%02X", dataTypeId) + " is not supported");
             }
-            if (field != null) {
-                if (isInteger) {
-                    switch (field.getType().getName()) {
-                        case "byte":
-                        case "java.lang.Byte":
-                            field.set(entry, (byte) integerValue);
-                            break;
-                        case "short":
-                        case "java.lang.Short":
-                            field.set(entry, (short) integerValue);
-                            break;
-                        case "int":
-                        case "java.lang.Integer":
-                            field.set(entry, (int) integerValue);
-                            break;
-                        case "long":
-                        case "java.lang.Long":
-                            field.set(entry, integerValue);
-                            break;
+            try {
+                if (field != null) {
+                    if (isInteger) {
+                        switch (field.getType().getName()) {
+                            case "byte":
+                            case "java.lang.Byte":
+                                field.set(entry, (byte) integerValue);
+                                break;
+                            case "short":
+                            case "java.lang.Short":
+                                field.set(entry, (short) integerValue);
+                                break;
+                            case "int":
+                            case "java.lang.Integer":
+                                field.set(entry, (int) integerValue);
+                                break;
+                            case "long":
+                            case "java.lang.Long":
+                                field.set(entry, integerValue);
+                                break;
+                        }
+                    } else {
+                        field.set(entry, value);
                     }
-                } else {
-                    field.set(entry, value);
                 }
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
             }
         }
     }

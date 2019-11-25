@@ -108,12 +108,17 @@ public class Repository<E extends RepositoryAccess> {
      * @param entryId uuid of an existing instance of the class
      * @return the instance
      */
-    public synchronized E getForUpdate(UUID entryId) throws ReflectiveOperationException {
+    public synchronized E getForUpdate(UUID entryId) {
         E entry = data.get(entryId);
         if (entry == null) {
             return null;
         }
-        E copiedEntry = objectsType.getConstructor().newInstance();
+        E copiedEntry;
+        try {
+            copiedEntry = objectsType.getConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         copiedEntry.setId(entryId);
         serializer.fillEntry(objectsType, copiedEntry, serializer.fullFormat(entry));
         return copiedEntry;
