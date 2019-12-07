@@ -31,6 +31,8 @@ public class Repository<E extends RepositoryAccess> {
 
     private Class<E> objectsType;
 
+    private Field readonlyField;
+
     private String alias;
 
     private Serializer<E> serializer;
@@ -54,6 +56,12 @@ public class Repository<E extends RepositoryAccess> {
         this.backupsPath = backupsPath;
         this.data = new HashMap<>();
         this.file = openFile(getDataFilePath());
+        try {
+            this.readonlyField = objectsType.getSuperclass().getDeclaredField("readonly");
+            this.readonlyField.setAccessible(true);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -71,6 +79,7 @@ public class Repository<E extends RepositoryAccess> {
             if (data.get(id) != null) {
                 throw new RuntimeException("Object with uuid = " + object.getId() + " already exists");
             }
+            readonlyField.set(object, true);
             if (isPersistent) {
                 file.write(serializeEntry(object));
             }
@@ -134,11 +143,15 @@ public class Repository<E extends RepositoryAccess> {
     public synchronized void update(E newEntry) {
         try {
             validate(newEntry);
+            if (readonlyField.getBoolean(newEntry)) {
+                throw new RuntimeException("This object is readonly");
+            }
             UUID id = newEntry.getId();
             E oldEntry = data.get(id);
             if (oldEntry == null) {
                 throw new RuntimeException(String.format("Entry with uuid = %s does not exist", id));
             }
+            readonlyField.set(newEntry, true);
             if (isPersistent) {
                 byte[] bytes = serializer.formatDiff(oldEntry, newEntry);
                 if (bytes.length != 0) {
@@ -242,6 +255,7 @@ public class Repository<E extends RepositoryAccess> {
                         E entry = objectsType.getConstructor().newInstance();
                         entry.setId(id);
                         serializer.fillEntry(objectsType, entry, serializedData);
+                        readonlyField.set(entry, true);
                         data.put(id, entry);
                         break;
                     case UPDATE:
@@ -250,6 +264,7 @@ public class Repository<E extends RepositoryAccess> {
                         serializedData = buf.getArray(dataSize);
                         entry = getForUpdate(id);
                         serializer.fillEntry(objectsType, entry, serializedData);
+                        readonlyField.set(entry, true);
                         data.put(id, entry);
                         break;
                     case DELETE:
@@ -280,7 +295,7 @@ public class Repository<E extends RepositoryAccess> {
         return dataPath + separator + alias + ext;
     }
 
-    private byte[] serializeEntry(E entry) throws ReflectiveOperationException {
+    private byte[] serializeEntry(E entry) {
         byte[] bytes = serializer.fullFormat(entry);
         int bytesForLength = usefulBytes(bytes.length);
         ByteBuf buf = new ByteBuf(1 + 16 + 1 + bytesForLength + bytes.length);

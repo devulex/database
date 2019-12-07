@@ -41,7 +41,7 @@ public class Example {
         }
     }
 
-    public static class User implements RepositoryAccess {
+    public static class User extends RepositoryAccess {
 
         @Uuid
         @NotNull
@@ -63,6 +63,7 @@ public class Example {
 
         @Override
         public void setId(UUID id) {
+            requireNonReadonly();
             this.id = id;
         }
 
@@ -71,6 +72,7 @@ public class Example {
         }
 
         public void setName(String name) {
+            requireNonReadonly();
             this.name = name;
         }
 
@@ -79,6 +81,7 @@ public class Example {
         }
 
         public void setCreated(LocalDateTime created) {
+            requireNonReadonly();
             this.created = created;
         }
 
@@ -87,6 +90,7 @@ public class Example {
         }
 
         public void setBlocked(boolean blocked) {
+            requireNonReadonly();
             this.blocked = blocked;
         }
     }

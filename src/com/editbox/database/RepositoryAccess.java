@@ -2,9 +2,17 @@ package com.editbox.database;
 
 import java.util.UUID;
 
-public interface RepositoryAccess {
+public abstract class RepositoryAccess {
 
-    UUID getId();
+    private transient boolean readonly = false;
 
-    void setId(UUID id);
+    protected void requireNonReadonly() {
+        if (readonly) {
+            throw new RuntimeException("This object is readonly");
+        }
+    }
+
+    public abstract UUID getId();
+
+    public abstract void setId(UUID id);
 }
